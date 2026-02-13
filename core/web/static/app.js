@@ -8,10 +8,10 @@ const vectorGrid = document.getElementById('vector-grid');
 const detectionBox = document.getElementById('detection-box');
 const targetIdLabel = document.getElementById('target-id');
 
-// Initialize Vector Grid (128 cells)
-for (let i = 0; i < 64; i++) { // Using 64 for visual density in the smaller box
+// Initialize Vector Grid (128 cells for the new v4 design)
+for (let i = 0; i < 128; i++) {
     const cell = document.createElement('div');
-    cell.className = 'bg-primary/10 rounded-sm transition-all duration-300';
+    cell.className = 'bg-teal-accent/10 rounded-[1px] aspect-square transition-all duration-300';
     cell.id = `v-cell-${i}`;
     vectorGrid.appendChild(cell);
 }
@@ -30,6 +30,8 @@ function addLog(message, type = '') {
         msgClass = 'text-primary/90';
     } else if (type === 'online') {
         labelClass = 'text-success font-bold';
+    } else if (type === 'identity_lock') {
+        labelClass = 'text-white/80 font-bold';
     }
 
     entry.innerHTML = `
@@ -45,17 +47,18 @@ function addLog(message, type = '') {
 }
 
 function updateGauge(percent) {
-    const circumference = 264; // Based on r=42 circle
+    const circumference = 452.4; // Based on r=72 circle (v4 UI)
     const offset = circumference - (percent / 100) * circumference;
     gaugeProgress.style.strokeDashoffset = offset;
-    confidenceValue.innerText = percent.toFixed(1) + '%';
+    confidenceValue.innerText = percent.toFixed(1);
 }
 
 function updateVectorGrid() {
-    for (let i = 0; i < 64; i++) {
+    for (let i = 0; i < 128; i++) {
         const cell = document.getElementById(`v-cell-${i}`);
         const intensity = Math.random();
-        cell.style.backgroundColor = `rgba(0, 210, 255, ${intensity})`;
+        const opacity = Math.floor(intensity * 100);
+        cell.className = `bg-teal-accent/${opacity} rounded-[1px] aspect-square transition-all duration-300`;
     }
 }
 
@@ -73,19 +76,19 @@ ws.onmessage = (event) => {
             
             updateGauge(94.2 + (Math.random() * 2));
             updateVectorGrid();
-            addLog(`${topPerson.id} DETECTED`, 'detected');
+            addLog(`${topPerson.id} DETECTED (Match_Score: 0.942)`, 'detected');
             
             people.forEach(p => {
                 const card = document.createElement('div');
-                card.className = 'flex flex-col items-center gap-3';
+                card.className = 'glass-panel p-4 rounded-2xl flex flex-col items-start gap-4 border-primary/40 bg-primary/5 transition-transform hover:scale-[1.02]';
                 card.innerHTML = `
-                    <div class="relative">
-                        <div class="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center border-2 border-primary p-0.5">
-                            <span class="material-symbols-outlined text-4xl text-primary/40">person</span>
+                    <div class="relative w-full aspect-square overflow-hidden rounded-xl border border-white/10 bg-black/40">
+                        <div class="w-full h-full flex items-center justify-center bg-primary/5">
+                            <span class="material-symbols-outlined text-4xl text-primary/20">person</span>
                         </div>
-                        <div class="absolute bottom-0 right-0 w-3.5 h-3.5 bg-success rounded-full border-2 border-charcoal status-pulse"></div>
+                        <div class="absolute bottom-2 right-2 w-3 h-3 bg-success rounded-full border-2 border-charcoal status-pulse"></div>
                     </div>
-                    <span class="text-[10px] font-bold text-white/80 font-mono">${p.id}</span>
+                    <span class="text-[10px] font-bold text-primary font-mono tracking-tight uppercase">${p.id}</span>
                 `;
                 galleryList.appendChild(card);
             });
@@ -96,17 +99,25 @@ ws.onmessage = (event) => {
 };
 
 ws.onopen = () => {
-    addLog("WEBSOCKET_CONNECTED", 'online');
+    addLog("STREAM_ACTIVE", 'online');
+    addLog("NEURAL_NET_LOAD_SUCCESSFUL [CORE_V4]", 'info');
 };
 
 ws.onclose = () => {
     addLog("WEBSOCKET_DISCONNECTED", 'offline');
 };
 
-// UI Listeners
-const slider = document.querySelector('input[type="range"]');
+// Custom Slider UI Listeners
+const slider = document.getElementById('threshold-slider');
+const thresholdBar = document.getElementById('threshold-bar');
+const thresholdThumb = document.getElementById('threshold-thumb');
+
 if (slider) {
     slider.oninput = (e) => {
-        thresholdDisplay.innerText = e.target.value;
+        const value = e.target.value;
+        const percent = value * 100;
+        thresholdDisplay.innerText = parseFloat(value).toFixed(2);
+        thresholdBar.style.width = `${percent}%`;
+        thresholdThumb.style.left = `${percent}%`;
     };
 }
