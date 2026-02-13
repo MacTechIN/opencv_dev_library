@@ -23,8 +23,13 @@ var/
 logs/
 *.log
 
-# Models (Optional: ignore if they are huge)
-# core/models/
+# Models & Assets
+assets/weights/
+
+# Environments
+venv/
+.env
+.agent/
 
 # OS
 .DS_Store

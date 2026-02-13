@@ -28,6 +28,7 @@ class FaceUtils:
         self.face_net = None
         self.age_net = None
         self.gender_net = None
+        self.reid_net = None
         
         self._load_models()
 
@@ -37,16 +38,18 @@ class FaceUtils:
             paths = {
                 "face": (os.path.join(self.models_path, "face_net.caffemodel"), os.path.join(self.models_path, "face_deploy.prototxt")),
                 "age": (os.path.join(self.models_path, "age_net.caffemodel"), os.path.join(self.models_path, "age_deploy.prototxt")),
-                "gender": (os.path.join(self.models_path, "gender_net.caffemodel"), os.path.join(self.models_path, "gender_deploy.prototxt"))
+                "gender": (os.path.join(self.models_path, "gender_net.caffemodel"), os.path.join(self.models_path, "gender_deploy.prototxt")),
+                "reid": (os.path.join(self.models_path, "openface.nn4.small2.v1.t7"), None)
             }
 
             for key, (model, proto) in paths.items():
-                if not os.path.exists(model) or not os.path.exists(proto):
+                if not os.path.exists(model) or (proto and not os.path.exists(proto)):
                     raise FileNotFoundError(f"Model files not found: {model} or {proto}")
 
             self.face_net = cv2.dnn.readNet(paths["face"][0], paths["face"][1])
             self.age_net = cv2.dnn.readNet(paths["age"][0], paths["age"][1])
             self.gender_net = cv2.dnn.readNet(paths["gender"][0], paths["gender"][1])
+            self.reid_net = cv2.dnn.readNetFromTorch(paths["reid"][0])
 
             # Hardware acceleration settings
             if self.use_opencl:
@@ -120,3 +123,18 @@ class FaceUtils:
     def classify_age(self, face_img: np.ndarray) -> str:
         """Estimate age range from a face image snippet"""
         return self._classify_common(self.age_net, face_img, self.AGE_LIST)
+
+    def get_face_embedding(self, face_img: np.ndarray) -> Optional[np.ndarray]:
+        """Extracts a 128-dimensional embedding vector from a face image."""
+        if not self.is_ready or self.reid_net is None or face_img is None or face_img.size == 0:
+            return None
+        
+        try:
+            # Preprocess for OpenFace (96x96 RGB)
+            face_rgb = cv2.cvtColor(face_img, cv2.COLOR_BGR2RGB)
+            blob = cv2.dnn.blobFromImage(face_rgb, 1.0/255, (96, 96), (0, 0, 0), swapRB=False, crop=False)
+            self.reid_net.setInput(blob)
+            return self.reid_net.forward().flatten()
+        except Exception as e:
+            logger.warning(f"Embedding extraction failed: {e}")
+            return None
