@@ -95,6 +95,18 @@
 #### 🔹 [download_model.py](file:///Users/sl/Workspace/12.Antigravity/opencv_dev/core/utils/download_model.py) [Support]
 - **설명**: Hugging Face 고속 모델 다운로더.
 
+### 4. Web Application Development (`core/web/`)
+웹 인터페이스 구동 및 비주얼라이저 유틸리티입니다.
+
+#### 🔹 [web_utils.py](file:///Users/sl/Workspace/12.Antigravity/opencv_dev/core/web/web_utils.py) [New]
+- **설명**: 웹 앱 부트스트랩, 프레임 오버레이 및 이미지 인코딩.
+
+| 함수 | 설명 |
+| :--- | :--- |
+| `bootstrap_vision_app()` | 폴더 생성 및 모델 로딩 등 공통 시작 프로세스를 자동 처리합니다. |
+| `draw_analysis_overlay()` | 탐지된 정보와 추정 거리를 프레임 위에 시각화합니다. |
+| `frame_to_base64()` | OpenCV 프레임을 웹 스트리밍용 포맷으로 변환합니다. |
+
 ## 🧪 Experiments Traceability
 성공한 실험들이 라이브러리화된 이력입니다.
 - **EX-001-FACE**: 얼굴 분석 기술 (성별/연령) -> `face_utils.py` 승급 완료.
