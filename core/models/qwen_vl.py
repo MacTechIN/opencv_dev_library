@@ -1,35 +1,58 @@
-from core.base.processor import Processor
+import os
 import torch
-# 실제 구현 시 transformers 등 필요한 라이브러리 임포트
+import requests
+from typing import Optional
 
-class QwenVLProcessor(Processor):
+class QwenVLProcessor:
     """
-    Qwen-2.5-VL 모델을 사용한 물체 탐지 프로세서.
-    로컬 경로(assets/weights/)가 존재할 경우 오프라인 모드로 로드합니다.
+    Qwen-2.5-VL 모델을 사용한 하이브리드 물체 탐지 프로세서.
+    인터넷 연결 상태에 따라 온라인(Hugging Face) 또는 로컬(assets/weights) 모델을 자동 선택합니다.
     """
-    def __init__(self, model_path=None):
+    def __init__(self, model_path: Optional[str] = None):
         # 기본 로컬 경로 설정
         if model_path is None:
             model_path = os.path.join(os.getcwd(), "assets/weights/Qwen2.5-VL-3B-Instruct")
         
         self.model_path = model_path
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.repo_id = "Qwen/Qwen2.5-VL-3B-Instruct"
         self.model = None
         self.processor = None
         
-        if os.path.exists(self.model_path):
-            print(f"로컬 모델 로드 중: {self.model_path}")
+        self._initialize_model()
+
+    def _check_internet(self, timeout: int = 3) -> bool:
+        """인터넷 연결 여부를 확인합니다."""
+        try:
+            requests.get("https://huggingface.co", timeout=timeout)
+            return True
+        except (requests.ConnectionError, requests.Timeout):
+            return False
+
+    def _initialize_model(self):
+        """환경에 최적화된 방식으로 모델을 초기화합니다."""
+        is_online = self._check_internet()
+        has_local = os.path.exists(self.model_path)
+
+        if is_online:
+            print(f"🌐 온라인 상태 감지: Hugging Face에서 '{self.repo_id}' 모델 로드 시도...")
+            # 실제 로드 로직 (예시)
+            # self.model = Qwen2_5_V_ForConditionalGeneration.from_pretrained(self.repo_id, ...)
+        elif has_local:
+            print(f"🏠 오프라인 상태: 로컬 경로('{self.model_path}')에서 모델 로드 중...")
             # self.model = Qwen2_5_V_ForConditionalGeneration.from_pretrained(self.model_path, ...)
         else:
-            print(f"경고: 로컬 모델을 찾을 수 없습니다. 인터넷 연결이 필요할 수 있습니다.")
+            print("❌ 오류: 인터넷에 연결되어 있지 않으며 로컬 모델도 찾을 수 없습니다.")
+            print("💡 'core/utils/download_model.py'를 실행하여 모델을 먼저 다운로드하세요.")
 
     def process(self, frame):
-        # Qwen-2.5-VL 추론 로직 (사람, 사물, 차량 등 탐지)
-        # 결과 이미지(BBox 포함) 및 메타데이터 반환
+        """이미지 프레임을 처리하여 탐지 결과가 포함된 이미지와 데이터를 반환합니다."""
+        # TODO: Qwen-2.5-VL 실제 추론 로직 구현
         return frame
 
-    def detect_objects(self, image_path):
-        """
-        이미지에서 물체를 탐지하고 결과를 반환함.
-        """
+    def detect_objects(self, image_path: str):
+        """이미지 파일에서 물체를 탐지합니다."""
+        if not self.model:
+            print("모델이 로드되지 않았습니다.")
+            return None
         pass

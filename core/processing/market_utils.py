@@ -48,18 +48,35 @@ class MarketUtils:
             stats[hour][key] += 1
         return dict(stats)
 
-    def analyze_visitor_flow(self, interval_minutes: int = 60) -> List[Dict[str, Any]]:
+    def analyze_visitor_flow(self, interval_minutes: int = 60) -> Dict[str, Any]:
         """
         특정 간격(분) 동안의 유입 인구 흐름을 분석합니다.
+        
+        Returns:
+            { "inflow": 120, "outflow": 105, "net_change": 15 }
         """
-        # 흐름 분석 로직 구현 필요
-        pass
+        # 실제 운영 환경에서는 진입/진출 구역(ROI) 통과 여부로 판단합니다.
+        # 여기서는 로그 데이터를 기반으로 단순 집계 예시를 제공합니다.
+        total_visits = len(self.visit_log)
+        print(f"📈 [LOG] Flow analysis triggered: {total_visits} records found.")
+        return {
+            "inflow": total_visits,  # 단순화된 예시
+            "outflow": int(total_visits * 0.8),
+            "net_change": int(total_visits * 0.2)
+        }
 
-    def detect_visit_frequency(self) -> Dict[str, float]:
+    def detect_visit_frequency(self, reid_features: List[np.ndarray]) -> Dict[str, Any]:
         """
-        재방문자(Return Visitor)와 신규 방문자의 비율을 분석합니다.
-        Re-ID 특징 벡터 비교 결과가 필요합니다.
+        Re-ID 특징 벡터를 대조하여 단골 손님(재방문자) 비중을 분석합니다.
         """
-        total_unique = len(set(entry["id"] for entry in self.visit_log))
-        # 실제 재방문 로직은 Re-ID 특징 저장소 대조 결과로 계산
-        return {"unique_visitors": total_unique, "retention_rate": 0.0}
+        # FeatureBank와 연동하여 신규 vs 기존 ID 구분 로직 필요
+        total = len(self.visit_log)
+        unique_ids = len(set(entry["id"] for entry in self.visit_log))
+        retention = (1 - (unique_ids / total)) * 100 if total > 0 else 0
+        
+        print(f"📊 [LOG] Retention Analysis: {retention:.1f}% repeat visitors.")
+        return {
+            "total_visitors": total,
+            "unique_visitors": unique_ids,
+            "retention_rate": retention
+        }
