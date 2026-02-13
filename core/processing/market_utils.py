@@ -2,6 +2,9 @@ import time
 from collections import defaultdict
 from typing import Dict, List, Any
 import datetime
+from core.utils.logger import get_logger
+
+logger = get_logger("MarketUtils")
 
 class MarketUtils:
     """
@@ -15,15 +18,7 @@ class MarketUtils:
         self.active_objects = {} # ID별 활성 객체 정보
 
     def record_visit(self, obj_id: int, gender: str, age: str, features: Dict[str, Any]):
-        """
-        방문자의 특징과 시간을 기록합니다.
-        
-        Args:
-            obj_id: 고유 객체 ID
-            gender: 성별
-            age: 연령대
-            features: 기타 특징 (의상 색상, 가방 유무 등)
-        """
+        """방문자의 특징과 시간을 기록합니다."""
         timestamp = datetime.datetime.now()
         log_entry = {
             "timestamp": timestamp,
@@ -33,6 +28,7 @@ class MarketUtils:
             "features": features
         }
         self.visit_log.append(log_entry)
+        logger.info(f"✅ 방문객 기록됨: ID={obj_id}, Gender={gender}, Age={age}")
 
     def aggregate_demographics_by_time(self) -> Dict[str, Dict[str, int]]:
         """

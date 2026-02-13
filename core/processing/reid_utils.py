@@ -1,6 +1,9 @@
 import numpy as np
 import time
 from typing import Dict, Optional, Tuple, List, Any
+from core.utils.logger import get_logger
+
+logger = get_logger("ReID")
 
 class FeatureBank:
     """
@@ -59,5 +62,5 @@ class FeatureBank:
         current_time = time.time()
         # 실제 구현 시 각 ID별 마지막 검출 시간을 기록하는 Dict가 필요합니다.
         # 여기서는 구현 개념을 명시합니다.
-        print(f"🧹 [LOG] FeatureBank cleanup: Removing features older than {max_idle_seconds}s")
+        logger.info(f"🧹 FeatureBank 정리: {max_idle_seconds}초 이상 유휴 상태인 특징 제거 중...")
         pass

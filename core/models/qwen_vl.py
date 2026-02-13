@@ -2,6 +2,9 @@ import os
 import torch
 import requests
 from typing import Optional
+from core.utils.logger import get_logger
+
+logger = get_logger("QwenVL")
 
 class QwenVLProcessor:
     """
@@ -35,15 +38,15 @@ class QwenVLProcessor:
         has_local = os.path.exists(self.model_path)
 
         if is_online:
-            print(f"🌐 온라인 상태 감지: Hugging Face에서 '{self.repo_id}' 모델 로드 시도...")
+            logger.info(f"🌐 온라인 상태 감지: Hugging Face에서 '{self.repo_id}' 모델 로드 시도...")
             # 실제 로드 로직 (예시)
             # self.model = Qwen2_5_V_ForConditionalGeneration.from_pretrained(self.repo_id, ...)
         elif has_local:
-            print(f"🏠 오프라인 상태: 로컬 경로('{self.model_path}')에서 모델 로드 중...")
+            logger.info(f"🏠 오프라인 상태: 로컬 경로('{self.model_path}')에서 모델 로드 중...")
             # self.model = Qwen2_5_V_ForConditionalGeneration.from_pretrained(self.model_path, ...)
         else:
-            print("❌ 오류: 인터넷에 연결되어 있지 않으며 로컬 모델도 찾을 수 없습니다.")
-            print("💡 'core/utils/download_model.py'를 실행하여 모델을 먼저 다운로드하세요.")
+            logger.error("❌ 오류: 인터넷에 연결되어 있지 않으며 로컬 모델도 찾을 수 없습니다.")
+            logger.info("💡 'core/utils/download_model.py'를 실행하여 모델을 먼저 다운로드하세요.")
 
     def process(self, frame):
         """이미지 프레임을 처리하여 탐지 결과가 포함된 이미지와 데이터를 반환합니다."""
