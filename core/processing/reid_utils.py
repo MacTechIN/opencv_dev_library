@@ -6,6 +6,9 @@ import logging
 from typing import Dict, List, Optional, Tuple
 
 from core.db.vector_manager import VectorManager
+from core.utils.logger import get_logger
+
+logger = get_logger("ReID")
 
 class FaceReID:
     def __init__(self, model_path: str = "assets/weights/face_models/openface.nn4.small2.v1.t7"):
@@ -67,12 +70,26 @@ class FaceReID:
         best_match = None
         min_dist = threshold
         
+        if len(self.gallery) > 0:
+            logger.info(f"🔍 Searching against gallery: {list(self.gallery.keys())}")
+        
         for face_id, data in self.gallery.items():
             gal_emb = np.array(data["embedding"])
             dist = np.linalg.norm(embedding - gal_emb)
+            msg = f"📐 Checking distance to {face_id}: {dist:.4f} (Threshold: {threshold})"
+            logger.info(msg)
+            print(msg) 
+            
             if dist < min_dist:
                 min_dist = dist
                 best_match = face_id
+        
+        if best_match:
+            logger.info(f"🎯 Match found: {best_match} (Dist: {min_dist:.4f})")
+        else:
+            # If no match found, log the best candidate distance if any
+            if len(self.gallery) > 0:
+                logger.warning(f"❌ No match found. Closest candidate dist: {min_dist:.4f} (Threshold: {threshold})")
                 
         return best_match
 
@@ -88,7 +105,7 @@ class FaceReID:
         if self.vm.is_ready:
             self.vm.push_vector(face_id, embedding)
 
-    def cleanup_stale_entries(self, max_age_seconds: int = 600, protected_ids: List[str] = ["FaceID_001"]):
+    def cleanup_stale_entries(self, max_age_seconds: int = 600, protected_ids: List[str] = ["User_ID:001"]):
         """
         Removes gallery entries that haven't been seen for a long time.
         Also deletes the corresponding ROI image from the disk.

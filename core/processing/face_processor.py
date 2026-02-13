@@ -30,6 +30,7 @@ class FaceProcessor:
         self.reid = FaceReID()
         self.ct = CentroidTracker(max_disappeared=max_disappeared)
         self.match_threshold = match_threshold
+        self.auto_reg = False # Default: Don't register invisible people automatically
         
         # CentroidID -> FaceID
         self.id_mapping = {}
@@ -86,11 +87,22 @@ class FaceProcessor:
                         
                         if matched_fid:
                             face_id = matched_fid
-                        else:
-                            # New Identity Registration
-                            new_num = len(self.reid.gallery) + 1
-                            face_id = f"FaceID_{new_num:03d}"
+                        elif self.auto_reg:
+                            # New Identity Registration - only if auto_reg is enabled
+                            # Find the highest existing FaceID number to avoid overlap
+                            existing_nums = []
+                            for fid in self.reid.gallery.keys():
+                                if fid.startswith("User_ID:"):
+                                    try: existing_nums.append(int(fid.split(":")[1]))
+                                    except: pass
+                            
+                            next_num = max(existing_nums) + 1 if existing_nums else 1
+                            face_id = f"User_ID:{next_num:03d}"
                             self.reid.register_face(face_id, embedding)
+                            logger.info(f"🆕 New face registered: {face_id}")
+                        else:
+                            # If not auto-registering, use a temporary tracking ID
+                            face_id = f"User_ID:TRK_{centroid_id:03d}"
                         
                         self.id_mapping[centroid_id] = face_id
 
