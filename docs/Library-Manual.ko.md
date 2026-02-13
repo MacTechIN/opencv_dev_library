@@ -4,6 +4,30 @@
 
 ---
 
+## 0. 개발 환경 구성 (Virtual Environments)
+
+본 플랫폼은 시스템의 안정성과 대용량 AI 모델의 효율적인 관리를 위해 가상환경을 이원화하여 운영합니다.
+
+### 🔹 [루트 가상환경](file:///Users/sl/Workspace/12.Antigravity/opencv_dev/.venv) (`.venv`)
+
+
+- **용도**: 핵심 라이브러리(`core/`) 개발, 유틸리티 유지보수, 웹 서버 운영 및 범용 OpenCV 이미지 처리.
+
+- **주요 패키지**: `opencv-python`, `numpy`, `requests` 등 표준 라이브러리.
+- **사용법**: 일반적인 개발 및 `core` 모듈 수정 시 활성화합니다.
+
+
+### 🔹 [실험 전용 가상환경](file:///Users/sl/Workspace/12.Antigravity/opencv_dev/experiments/EX-002-QWEN-VL/venv) (`experiments/EX-002-QWEN-VL/venv`)
+
+
+- **용도**: Qwen-VL 기반 Vision-Language 모델 추론, GPU 가석 실험 및 대용량 AI 의존성 테스트.
+
+- **주요 패키지**: `torch`, `transformers`, `accelerate`, `pillow` 등 Deep Learning 특화 라이브러리.
+- **특징**: 루트 환경과의 라이브러리 충돌(특히 PyTorch 버전 관리)을 방지하기 위해 독립적으로 구축되었습니다.
+- **사용법**: Qwen-VL 엔진을 직접 실행하거나 관련 실험을 수행할 때 해당 디렉토리의 가상환경을 활성화해야 합니다.
+
+---
+
 ## 1. Vision Processing (`core/processing/`)
 
 ### 🔹 [FaceUtils](file:///Users/sl/Workspace/12.Antigravity/opencv_dev/core/processing/face_utils.py)
@@ -124,24 +148,60 @@ print(f"Retention Rate: {retention['retention_rate']}%")
 ## 2. AI Model Wrappers (`core/models/`)
 
 ### 🔹 [QwenVLProcessor](file:///Users/sl/Workspace/12.Antigravity/opencv_dev/core/models/qwen_vl.py)
-Qwen-2.5-VL 모델을 이용한 시각 언어(VLM) 기반 분석을 수행합니다.
+Qwen-2.5-VL 모델을 이용하여 하이브리드 로딩 및 정밀 인물 분석을 수행합니다.
 
-#### **Example: 객체 탐지 및 텍스트 설명 생성**
+#### **Hybrid Loading**
+인터넷 연결 상태와 로컬 가중치(`assets/weights`) 존재 여부에 따라 자동으로 로딩 모드를 전환합니다.
+
+#### **Example: 통합 인물 분석 및 데이터 자산화**
 ```python
 from core.models.qwen_vl import QwenVLProcessor
 qwen = QwenVLProcessor()
 
-# 이미지 파일 상세 분석
-description = qwen.detect_objects("scene.jpg")
-print(f"Analysis: {description}")
+# 1. 인물 탐지 및 종합 분석 실행
+results = qwen.detect_and_analyze_persons("scene.jpg")
 
-# 비디오 프레임 처리 (추론 결과 로깅)
-processed_frame = qwen.process(frame)
+for res in results:
+    # 2. 개별 인물 데이터 추출
+    pid = res['id']
+    dist = res['distance']    # 추정 거리 (m)
+    loc = res['location']     # 3D 추정 위치 {'x', 'y', 'z'}
+    vec = res['feature_vector'] # 표준화된 1D 속성 벡터
+    
+    print(f"[{pid}] Distance: {dist}m, Gender: {res['gender']}")
+    print(f"Location Config: {loc}")
+```
+
+#### **Core Functions**
+- `vectorize_attributes(...)`: 성별(Numerical), 연령대(Mapped), 정규화된 BBox 좌표를 결합하여 머신러닝 모델이 이해할 수 있는 벡터를 생성합니다.
+- `estimate_distance(...)`: 광학 중심과 객체 크기를 기반으로 물리적 거리를 계산합니다.
+- `calculate_location(...)`: 거리 값과 화면 내 위치를 투영하여 공간 상의 좌표를 산출합니다.
+
+---
+
+## 3. App Development (웹개발) (`core/web/`) [NEW]
+
+### 🔹 [WebAppSDK](file:///Users/sl/Workspace/12.Antigravity/opencv_dev/core/web/web_utils.py)
+웹 애플리케이션 개발 생산성을 높이기 위한 공통 라이브러리입니다.
+
+#### **Example: 분석 결과 시각화 및 웹 전송**
+```python
+from core.web.web_utils import WebAppSDK
+import cv2
+
+# 1. 분석 결과 오버레이 그리기 (ID/성별/나이 표시)
+visualized_frame = WebAppSDK.draw_analysis_overlay(frame, results)
+
+# 2. 웹 스트리밍용 Base64 인코딩
+base64_img = WebAppSDK.frame_to_base64(visualized_frame)
+
+# 3. 표준 API 응답 생성
+response = WebAppSDK.format_api_response("success", {"image": base64_img})
 ```
 
 ---
 
-## 3. Support Utilities (`core/utils/`)
+## 4. Support Utilities (`core/utils/`)
 
 ### 🔹 [VisionLogger](file:///Users/sl/Workspace/12.Antigravity/opencv_dev/core/utils/logger.py)
 시스템 전역에서 일관된 포맷으로 로그를 기록하며, 파일 회전 기능을 지원합니다.

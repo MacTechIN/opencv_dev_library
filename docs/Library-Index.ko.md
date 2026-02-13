@@ -71,15 +71,16 @@
 
 ### 2. AI Model Wrappers (`core/models/`)
 
-#### 🔹 [qwen_vl.py](file:///Users/sl/Workspace/12.Antigravity/opencv_dev/core/models/qwen_vl.py) [Official]
+#### 🔹 [AI Models](file:///Users/sl/Workspace/12.Antigravity/opencv_dev/core/models/)
 - **설명**: Qwen-2.5-VL 기반 고성능 멀티모달 객체 탐지 인터페이스.
 - **원리**: 인터넷 연결 상태에 따른 하이브리드 자동 스위칭 로직.
 
-| 클래스 / 함수 | 설명 |
+| 함수 | 설명 |
 | :--- | :--- |
-| `QwenVLProcessor(model_path)` | 하이브리드 프로세서 (오프라인/온라인 자동 스위칭). |
-| `process(frame)` | 비디오 프레임에서 객체를 탐지합니다. |
-| `detect_objects(image_path)` | 이미지 파일에 대한 상세 설명을 생성합니다. |
+| `detect_and_analyze_persons(image)` | 인물 탐지, 성별, 나이 분석 및 거리/벡터화를 통합 수행합니다. |
+| `vectorize_attributes(id, g, a, b)` | 인물 속성을 표준화된 1D 특징 벡터로 변환합니다. |
+| `estimate_distance(bbox)` | 신체 크기를 기반으로 카메라와의 물리적 거리를 추정합니다. |
+| `calculate_location(bbox, dist)` | 2D 좌표와 거리를 결합하여 3D 공간 상의 위치를 산출합니다. |
 
 ### 3. Support Utilities (`core/utils/`)
 

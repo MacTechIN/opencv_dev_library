@@ -18,17 +18,27 @@ def run_experiment():
     # Test image path (Example)
     image_path = os.path.join(project_root, "data/test_image.jpg")
     
+    # Check if image exists
+    if not os.path.exists(image_path):
+        print(f"⚠️ Warning: Test image not found at {image_path}")
+        return
+
     # 1. Image load and preprocessing
-    # frame = cv2.imread(image_path)
+    frame = cv2.imread(image_path)
     
     # 2. Inference (Detect people, objects, vehicles, etc.)
-    # result_frame = processor.process(frame)
+    # The process method in QwenVLProcessor should handle the inference
+    result_frame = processor.process(frame)
     
     # 3. Save results
-    # output_path = "experiments/EX-002-QWEN-VL/results/output.jpg"
-    # cv2.imwrite(output_path, result_frame)
+    output_dir = os.path.join(project_root, "experiments/EX-002-QWEN-VL/results")
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+        
+    output_path = os.path.join(output_dir, "output.jpg")
+    cv2.imwrite(output_path, result_frame)
     
-    print("Experiment completed. Check the results/ folder for outcomes.")
+    print(f"Experiment completed. Results saved to: {output_path}")
 
 if __name__ == "__main__":
     run_experiment()

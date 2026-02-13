@@ -1,16 +1,22 @@
 import os
+import re
+import cv2
 import torch
 import requests
-from typing import Optional
+import numpy as np
+from PIL import Image
+from typing import Optional, List, Dict, Any
 from core.utils.logger import get_logger
 
 logger = get_logger("QwenVL")
 
 class QwenVLProcessor:
     """
-    Hybrid object detection processor using the Qwen-2.5-VL model.
-    Automatically selects between online (Hugging Face) or local (assets/weights) models 
-    based on internet connectivity.
+    Hybrid object detection and analysis processor using the Qwen-2.5-VL model.
+    Supports:
+    - Automatic Hybrid Loading: Local weights (assets/weights) vs Online (Hugging Face)
+    - Comprehensive Person Analysis: Detection + Gender + Age in one pass
+    - Precision Parsing: Regex-based coordinate extraction
     """
     def __init__(self, model_path: Optional[str] = None):
         # Set default local path
@@ -35,28 +41,208 @@ class QwenVLProcessor:
 
     def _initialize_model(self):
         """Initializes the model in an environment-optimized manner."""
-        is_online = self._check_internet()
+        # 1. Check local weights
         has_local = os.path.exists(self.model_path)
-
-        if is_online:
-            logger.info(f"🌐 Online status detected: Attempting to load '{self.repo_id}' from Hugging Face...")
-            # Actual loading logic (Example)
-            # self.model = Qwen2_5_V_ForConditionalGeneration.from_pretrained(self.repo_id, ...)
-        elif has_local:
-            logger.info(f"🏠 Offline status: Loading model from local path ('{self.model_path}')...")
-            # self.model = Qwen2_5_V_ForConditionalGeneration.from_pretrained(self.model_path, ...)
+        
+        # 2. Check internet for repo fallback
+        is_online = self._check_internet()
+        
+        if has_local:
+            os.environ["TRANSFORMERS_OFFLINE"] = "1"
+            os.environ["HF_DATASETS_OFFLINE"] = "1"
+            load_path = self.model_path
+            logger.info(f"🏠 Offline Mode: Prioritizing local weights at '{self.model_path}'")
+        elif is_online:
+            load_path = self.repo_id
+            logger.info(f"🌐 Online Mode: Local weights not found. Loading '{self.repo_id}' from HF...")
         else:
-            logger.error("❌ Error: No internet connection detected and local model not found.")
-            logger.info("💡 Run 'core/utils/download_model.py' to download the model first.")
+            logger.error("❌ Critical: No local weights found AND no internet connection.")
+            return
+
+        try:
+            from transformers import Qwen2_5_VLForConditionalGeneration, AutoProcessor
+            
+            # Load Processor
+            self.processor = AutoProcessor.from_pretrained(
+                load_path, 
+                local_files_only=has_local
+            )
+            
+            # Load Model
+            self.model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
+                load_path,
+                torch_dtype="auto",
+                device_map="auto",
+                local_files_only=has_local
+            )
+            
+            logger.info(f"✅ Qwen-2.5-VL loaded successfully on {self.device}")
+            
+        except ImportError as e:
+            logger.error(f"❌ ImportError during model initialization: {e}")
+            logger.info("💡 Hint: Try 'pip install --upgrade transformers accelerate'")
+        except Exception as e:
+            logger.error(f"❌ Error during model initialization: {e}")
+            if not has_local:
+                logger.info("💡 Hint: Run 'core/utils/download_model.py' to download weights for offline use.")
+
+    def detect_and_analyze_persons(self, image_input: Any) -> List[Dict[str, Any]]:
+        """
+        Detects all persons in the image and analyzes their gender and age group.
+        Returns a list of dictionaries containing 'bbox', 'gender', and 'age'.
+        """
+        if not self.model or not self.processor:
+            return []
+
+        try:
+            # Handle string (path) or PIL Image or numpy array
+            if isinstance(image_input, str):
+                image = Image.open(image_input).convert("RGB")
+            elif isinstance(image_input, np.ndarray):
+                image = Image.fromarray(cv2.cvtColor(image_input, cv2.COLOR_BGR2RGB))
+            else:
+                image = image_input
+
+            # High-precision prompt for detailed person analysis - using Few-shot style for control
+            prompt = (
+                "<|image_pad|>Task: Detect every person in the image.\n"
+                "Output Format for each person: [ymin, xmin, ymax, xmax] Gender, AgeGroup\n"
+                "Example: [120, 250, 480, 510] Female, 30s\n"
+                "Constraints: Do not provide reasoning. Only list detections."
+            )
+
+            # Force resize image to ensure it doesn't exceed 1280px to avoid tensor mismatch
+            max_side = 1200
+            if max(image.size) > max_side:
+                scale = max_side / max(image.size)
+                new_size = (int(image.size[0] * scale), int(image.size[1] * scale))
+                image = image.resize(new_size, Image.LANCZOS)
+                logger.info(f"📏 Image resized to {new_size} for model stability.")
+
+            # Optimized pixel limitations (Multiple of 28 is best for Qwen2-VL)
+            min_pixels = 224 * 224
+            max_pixels = 1024 * 1024
+            
+            inputs = self.processor(
+                text=[prompt], 
+                images=[image], 
+                padding=True,
+                return_tensors="pt",
+                min_pixels=min_pixels,
+                max_pixels=max_pixels
+            ).to(self.device)
+            
+            logger.info(f"🚀 Starting token generation (Ready with input shape constraint)...")
+            with torch.no_grad():
+                generated_ids = self.model.generate(
+                    **inputs, 
+                    max_new_tokens=256,
+                    repetition_penalty=1.2,
+                    temperature=0.1,
+                    top_p=0.9
+                )
+            
+            res_text = self.processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
+            logger.info(f"--- [Qwen-VL Raw Output Content] ---\n{res_text}\n-----------------------------------")
+
+            # Regex for parsing bounding boxes: [ymin, xmin, ymax, xmax] or (ymin, xmin, ymax, xmax)
+            results = []
+            
+            # Enhanced Regex for parsing bounding boxes and attributes
+            # Matches: [ymin, xmin, ymax, xmax] Gender, Age
+            # Also handles variations with/without comma and parentheses
+            pattern = re.compile(r"[\[\(](\d+),\s*(\d+),\s*(\d+),\s*(\d+)[\]\)]\s*(\w+)[,\s]*(\d+s)")
+            matches = pattern.findall(res_text)
+
+            if not matches:
+                # Fallback: Try just finding boxes first
+                logger.warning("⚠️ No structured attribute matches found. Falling back to box-only search.")
+                box_matches = re.findall(r"[\[\(](\d+),\s*(\d+),\s*(\d+),\s*(\d+)[\]\)]", res_text)
+                if not box_matches:
+                    logger.warning("❌ Totally no bounding boxes found in model output.")
+                    return []
+                # If only boxes found, assign default attributes
+                for box in box_matches:
+                    matches.append((*box, "Unknown", "Unknown"))
+
+            for i, match in enumerate(matches):
+                ymin, xmin, ymax, xmax, gender, age = match
+                ymin, xmin, ymax, xmax = int(ymin), int(xmin), int(ymax), int(xmax)
+
+                # [NEW] Distance and Location Estimation
+                distance = self.estimate_distance([ymin, xmin, ymax, xmax])
+                location = self.calculate_location([ymin, xmin, ymax, xmax], distance)
+                
+                # [NEW] Vectorize attributes for downstream analysis
+                feature_vector = self.vectorize_attributes(i + 1, gender, age, [ymin, xmin, ymax, xmax])
+
+                results.append({
+                    "id": i + 1,
+                    "bbox": [ymin, xmin, ymax, xmax],
+                    "gender": gender,
+                    "age": age,
+                    "distance": round(float(distance), 2),
+                    "location": location,
+                    "feature_vector": feature_vector.tolist() if isinstance(feature_vector, np.ndarray) else feature_vector,
+                    "raw_info": attr_text.strip()
+                })
+
+            return results
+
+        except Exception as e:
+            logger.error(f"❌ Error during comprehensive person analysis: {e}")
+            return []
+
+    def vectorize_attributes(self, obj_id: int, gender: str, age: str, bbox: List[int]) -> np.ndarray:
+        """
+        Converts person attributes into a standardized 1D feature vector.
+        Vector format: [Gender_Bit, Age_Group_Val, Norm_X, Norm_Y, Norm_Width, Norm_Height]
+        """
+        # Gender: Male=1, Female=1, Unknown=0 (Simplified)
+        gender_bit = 1.0 if gender == "Male" else -1.0 if gender == "Female" else 0.0
+        
+        # Age Mapping
+        age_map = {"10s": 0.1, "20s": 0.2, "30s": 0.3, "40s": 0.4, "50s": 0.5, "60s": 0.6, "70s+": 0.7}
+        age_val = age_map.get(age, 0.0)
+        
+        # BBox Normalization (Assuming 1000-scale coordinates from Qwen-VL)
+        ymin, xmin, ymax, xmax = bbox
+        nx = xmin / 1000.0
+        ny = ymin / 1000.0
+        nw = (xmax - xmin) / 1000.0
+        nh = (ymax - ymin) / 1000.0
+        
+        vector = np.array([gender_bit, age_val, nx, ny, nw, nh], dtype=np.float32)
+        return vector
+
+    def estimate_distance(self, bbox: List[int], focal_length_px: float = 800.0, avg_height_m: float = 1.7) -> float:
+        """
+        Estimates relative distance (Z-axis) based on BBox height.
+        Formula: Distance = (Real Height * Focal Length) / Pixel Height
+        """
+        ymin, xmin, ymax, xmax = bbox
+        pixel_height = max(1, ymax - ymin)
+        
+        # Normalize pixel height if it's in 1000-scale
+        if pixel_height > 0:
+             distance = (avg_height_m * focal_length_px) / (pixel_height * (640 / 1000.0)) # Scale heuristic
+             return max(0.5, distance) # Minimum 0.5m
+        return 0.0
+
+    def calculate_location(self, bbox: List[int], distance: float) -> Dict[str, float]:
+        """Maps 2D screen coordinates to estimated 3D space coordinates."""
+        ymin, xmin, ymax, xmax = bbox
+        cx = (xmin + xmax) / 2.0
+        
+        # Horizontal shift from center (normalized -1.0 to 1.0)
+        h_shift = (cx - 500) / 500.0
+        
+        # Heuristic 3D mapping
+        x_3d = h_shift * distance * 0.5 # Approx FOV spread
+        z_3d = distance
+        
+        return {"x": round(x_3d, 2), "y": 0.0, "z": round(z_3d, 2)}
 
     def process(self, frame):
-        """Processes an image frame and returns results including detection data."""
-        # TODO: Implement actual inference logic for Qwen-2.5-VL
-        return frame
-
-    def detect_objects(self, image_path: str):
-        """Detects objects within an image file."""
-        if not self.model:
-            logger.error("Model not loaded.")
-            return None
-        pass
+        """Backward compatibility: legacy process method."""
+        return self.detect_and_analyze_persons(frame)
