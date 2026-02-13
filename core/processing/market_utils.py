@@ -53,30 +53,49 @@ class MarketUtils:
         특정 간격(분) 동안의 유입 인구 흐름을 분석합니다.
         
         Returns:
-            { "inflow": 120, "outflow": 105, "net_change": 15 }
+            { "inflow": 120, "outflow": 105, "net_change": 15, "peak_hour": "14:00" }
         """
-        # 실제 운영 환경에서는 진입/진출 구역(ROI) 통과 여부로 판단합니다.
-        # 여기서는 로그 데이터를 기반으로 단순 집계 예시를 제공합니다.
-        total_visits = len(self.visit_log)
-        print(f"📈 [LOG] Flow analysis triggered: {total_visits} records found.")
+        current_time = datetime.datetime.now()
+        start_time = current_time - datetime.timedelta(minutes=interval_minutes)
+        
+        # 지정된 시간 간격 내의 방문자 필터링
+        recent_visits = [e for e in self.visit_log if e["timestamp"] > start_time]
+        
+        inflow = len(recent_visits)
+        # 실제 환경에서는 출구 카메라 로그를 별도로 관리하지만, 예시에선 랜덤 비중 적용
+        outflow = int(inflow * 0.85) 
+        
+        # 피크 타임 계산
+        hour_counts = defaultdict(int)
+        for e in recent_visits:
+            hour_counts[e["timestamp"].strftime("%H:00")] += 1
+        peak_hour = max(hour_counts, key=hour_counts.get) if hour_counts else "N/A"
+
         return {
-            "inflow": total_visits,  # 단순화된 예시
-            "outflow": int(total_visits * 0.8),
-            "net_change": int(total_visits * 0.2)
+            "inflow": inflow,
+            "outflow": outflow,
+            "net_change": inflow - outflow,
+            "peak_hour": peak_hour
         }
 
-    def detect_visit_frequency(self, reid_features: List[np.ndarray]) -> Dict[str, Any]:
+    def detect_visit_frequency(self) -> Dict[str, Any]:
         """
-        Re-ID 특징 벡터를 대조하여 단골 손님(재방문자) 비중을 분석합니다.
+        재방문자(Return Visitor)와 신규 방문자의 비율을 분석합니다.
         """
-        # FeatureBank와 연동하여 신규 vs 기존 ID 구분 로직 필요
-        total = len(self.visit_log)
-        unique_ids = len(set(entry["id"] for entry in self.visit_log))
-        retention = (1 - (unique_ids / total)) * 100 if total > 0 else 0
+        if not self.visit_log:
+            return {"total": 0, "retention_rate": 0.0}
+
+        id_counts = defaultdict(int)
+        for entry in self.visit_log:
+            id_counts[entry["id"]] += 1
+            
+        return_visitors = sum(1 for count in id_counts.values() if count > 1)
+        total_unique = len(id_counts)
+        retention_rate = (return_visitors / total_unique * 100) if total_unique > 0 else 0.0
         
-        print(f"📊 [LOG] Retention Analysis: {retention:.1f}% repeat visitors.")
         return {
-            "total_visitors": total,
-            "unique_visitors": unique_ids,
-            "retention_rate": retention
+            "total_unique": total_unique,
+            "return_visitors": return_visitors,
+            "retention_rate": round(retention_rate, 2),
+            "new_visitors": total_unique - return_visitors
         }

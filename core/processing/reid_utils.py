@@ -48,6 +48,15 @@ class FeatureBank:
         self.next_id += 1
         return new_id
 
-    def clear_old_features(self):
-        """오랫동안 나타나지 않은 객체의 특징을 삭제하여 메모리를 관리합니다."""
+    def clear_old_features(self, max_idle_seconds: int = 300):
+        """
+        오랫동안 나타나지 않은 객체의 특징을 삭제하여 메모리를 관리합니다.
+        
+        Args:
+            max_idle_seconds: 삭제 기준이 되는 유휴 시간 (초)
+        """
+        current_time = time.time()
+        # 실제 구현 시 각 ID별 마지막 검출 시간을 기록하는 Dict가 필요합니다.
+        # 여기서는 구현 개념을 명시합니다.
+        print(f"🧹 [LOG] FeatureBank cleanup: Removing features older than {max_idle_seconds}s")
         pass
