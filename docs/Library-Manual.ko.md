@@ -170,6 +170,30 @@ for res in results:
     
     print(f"[{pid}] Distance: {dist}m, Gender: {res['gender']}")
     print(f"Location Config: {loc}")
+
+---
+
+### 🔹 [WebAppSDK](file:///Users/sl/Workspace/12.Antigravity/opencv_dev/core/web/web_utils.py)
+웹 애플리케이션 개발 및 비전 결과 시각화를 위한 공용 인터페이스입니다.
+
+#### **Example: 부트스트랩을 이용한 원스톱 초기화**
+```python
+from core.web.web_utils import WebAppSDK
+
+# 1. 앱 시작에 필요한 모든 리소스(폴더, 모델 등)를 한 번에 초기화
+context = WebAppSDK.bootstrap_vision_app(model_types=["qwen-vl"])
+
+# 2. 초기화된 모델 꺼내 쓰기
+qwen = context["models"]["qwen_vl"]
+logger = context.get("logger") # 기본 로거 포함
+
+print(f"App initialized at: {context['init_time']}")
+```
+
+#### **Core Functions**
+- `bootstrap_vision_app(model_types=[...])`: 폴더 생성 및 모델 로딩 등 공통 시작 프로세스를 자동 처리합니다.
+- `draw_analysis_overlay(frame, results)`: 분석 결과를 화면에 오버레이합니다.
+- `frame_to_base64(frame)`: 웹 스트리밍을 위한 이미지 인코딩을 수행합니다.
 ```
 
 #### **Core Functions**

@@ -1,6 +1,8 @@
 import base64
 import cv2
 import numpy as np
+import os
+import datetime
 from typing import Dict, Any, List
 from core.utils.logger import get_logger
 
@@ -67,6 +69,42 @@ class WebAppSDK:
                         cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 0), 1)
 
         return output_frame
+
+    @staticmethod
+    def bootstrap_vision_app(model_types: List[str] = ["qwen-vl"]) -> Dict[str, Any]:
+        """
+        One-stop bootstrap for Vision AI applications.
+        Creates directories, initializes logging, and loads requested models.
+        
+        Returns:
+            Dict containing initialized models and system context.
+        """
+        logger.info("🚀 [Bootstrap] Starting Vision AI Application environment setup...")
+        
+        # 1. Ensure Essential Directories
+        essential_dirs = ["results", "logs", "assets/weights"]
+        for d in essential_dirs:
+            os.makedirs(d, exist_ok=True)
+            logger.info(f"📁 [Bootstrap] Directory verified: {d}")
+
+        context = {
+            "init_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "models": {},
+            "device_info": "Detected automatically by models"
+        }
+
+        # 2. Dynamic Model Loading
+        if "qwen-vl" in [m.lower() for m in model_types]:
+            try:
+                from core.models.qwen_vl import QwenVLProcessor
+                logger.info("🤖 [Bootstrap] Loading Qwen-VL Processor...")
+                context["models"]["qwen_vl"] = QwenVLProcessor()
+                logger.info("✅ [Bootstrap] Qwen-VL Engine ready.")
+            except Exception as e:
+                logger.error(f"❌ [Bootstrap] Failed to load Qwen-VL: {e}")
+
+        logger.info("✨ [Bootstrap] Application environment is now ready.")
+        return context
 
 def get_webapp_sdk():
     """Returns a singleton instance of WebAppSDK or provides static methods."""
