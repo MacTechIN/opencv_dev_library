@@ -87,5 +87,7 @@ VisionAI-Platform/
 본 프로젝트의 소유권은 Sam LEE (Hotnewton@kore.ac.kr)에게 있습니다.  다만 라이브러리 사용에 있어서는 자유롭게 업데이트 및 사용하셔도 좋습니다
 출처만 밝혀 주시기 바랍니다. 
 
-2026년 2월13일  13일의 금요일 오후 3시 58분  윈져에서...Sam LEE 드림
+![작성 날짜](assets/images/timestamp.png)
+
+2026년 2월 13일 (금) 오후 5시 39분 (현지 기준) - Sam LEE 드림
 
