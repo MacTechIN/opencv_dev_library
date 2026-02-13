@@ -2,14 +2,29 @@
 __pycache__/
 *.py[cod]
 *$py.class
-venv/
-.venv/
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
 
-# AI/ML
-assets/weights/*
-!assets/weights/.gitkeep
+# Logs
+logs/
+*.log
 
-# Project specific
-experiments/*/results/*
-!experiments/*/results/.gitkeep
+# Models (Optional: ignore if they are huge)
+# core/models/
+
+# OS
 .DS_Store
