@@ -43,13 +43,14 @@ class VisionLogger:
             encoding='utf-8'
         )
         file_handler.setFormatter(formatter)
-
-        # 콘솔 핸들러
-        console_handler = logging.StreamHandler()
-        console_handler.setFormatter(formatter)
-
         self.logger.addHandler(file_handler)
-        self.logger.addHandler(console_handler)
+
+        # 터미널 실시간 스트리밍 비트 확인 (VISION_LIVE_LOG=1 인 경우만 활성화)
+        live_log_bit = os.getenv("VISION_LIVE_LOG", "0").lower()
+        if live_log_bit in ("1", "true", "on"):
+            console_handler = logging.StreamHandler()
+            console_handler.setFormatter(formatter)
+            self.logger.addHandler(console_handler)
 
 def get_logger(name="VisionAI"):
     """모듈별 로거 인스턴스를 반환하는 편의 함수"""
