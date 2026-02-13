@@ -5,16 +5,16 @@ import time
 from typing import List, Tuple, Dict, Optional
 from core.utils.logger import get_logger
 
-# 통합 로거 초기화
+# Unified logger initialization
 logger = get_logger("FaceUtils")
 
 class FaceUtils:
     """
-    얼굴 인식 및 분석(성별, 연령)을 담당하는 유틸리티 클래스.
-    OpenCV DNN 모듈을 사용하여 Caffe 모델 기반 추론을 수행합니다.
+    Utility class for face recognition and analysis (gender, age).
+    Performs inference based on Caffe models using the OpenCV DNN module.
     """
     
-    # 상수 정의
+    # Constant definitions
     AGE_LIST = ['(0-2)', '(4-6)', '(8-12)', '(15-20)', '(25-32)', '(38-43)', '(48-53)', '(60-100)']
     GENDER_LIST = ['Male', 'Female']
     MODEL_MEAN_VALUES = (78.4263377603, 87.7689143744, 114.895847746)
@@ -24,7 +24,7 @@ class FaceUtils:
         self.use_opencl = use_opencl
         self.is_ready = False
         
-        # 모델 속성 초기화
+        # Initialize model attributes
         self.face_net = None
         self.age_net = None
         self.gender_net = None
@@ -32,7 +32,7 @@ class FaceUtils:
         self._load_models()
 
     def _load_models(self):
-        """모델 가중치와 프로토텍스트를 로드하고 백엔드 설정을 수행합니다."""
+        """Loads model weights and prototxt files, and configures the backend."""
         try:
             paths = {
                 "face": (os.path.join(self.models_path, "face_net.caffemodel"), os.path.join(self.models_path, "face_deploy.prototxt")),
@@ -42,35 +42,35 @@ class FaceUtils:
 
             for key, (model, proto) in paths.items():
                 if not os.path.exists(model) or not os.path.exists(proto):
-                    raise FileNotFoundError(f"모델 파일을 찾을 수 없습니다: {model} 또는 {proto}")
+                    raise FileNotFoundError(f"Model files not found: {model} or {proto}")
 
             self.face_net = cv2.dnn.readNet(paths["face"][0], paths["face"][1])
             self.age_net = cv2.dnn.readNet(paths["age"][0], paths["age"][1])
             self.gender_net = cv2.dnn.readNet(paths["gender"][0], paths["gender"][1])
 
-            # 가속화 설정
+            # Hardware acceleration settings
             if self.use_opencl:
                 self.face_net.setPreferableBackend(cv2.dnn.DNN_BACKEND_DEFAULT)
                 self.face_net.setPreferableTarget(cv2.dnn.DNN_TARGET_OPENCL)
-                logger.info("🚀 FaceUtils: OpenCL 가속 모드 활성화")
+                logger.info("🚀 FaceUtils: OpenCL acceleration mode enabled")
 
             self.is_ready = True
-            logger.info("✅ FaceUtils: 모든 모델 로드 완료")
+            logger.info("✅ FaceUtils: All models loaded successfully")
 
         except Exception as e:
-            logger.error(f"❌ 모델 로드 프로세스 실패: {e}")
+            logger.error(f"❌ Model load process failed: {e}")
             self.is_ready = False
 
     def detect_faces(self, frame: np.ndarray, conf_threshold: float = 0.7) -> List[Tuple[int, int, int, int]]:
         """
-        영상에서 얼굴을 탐지하고 좌표를 반환합니다.
+        Detects faces in the frame and returns their coordinates.
         
         Args:
-            frame: 입력 이미지 (BGR)
-            conf_threshold: 신뢰도 임계값
+            frame: Input image (BGR)
+            conf_threshold: Confidence threshold for detection
             
         Returns:
-            List of (x1, y1, x2, y2)
+            List of (x1, y1, x2, y2) tuples
         """
         if not self.is_ready or frame is None or frame.size == 0:
             return []
@@ -82,25 +82,25 @@ class FaceUtils:
         detections = self.face_net.forward()
         
         face_boxes = []
-        # 최적화: 루프 밖에서 고정된 shape 값 참조
+        # Optimization: Reference fixed shape value outside the loop
         num_detections = detections.shape[2]
         
         for i in range(num_detections):
             confidence = detections[0, 0, i, 2]
             if confidence > conf_threshold:
-                # 좌표 정규화 및 바운딩 처리
+                # Coordinate normalization and boundary handling
                 x1 = max(0, int(detections[0, 0, i, 3] * w))
                 y1 = max(0, int(detections[0, 0, i, 4] * h))
                 x2 = min(w - 1, int(detections[0, 0, i, 5] * w))
                 y2 = min(h - 1, int(detections[0, 0, i, 6] * h))
                 
-                # 유효한 크기의 박스인지 확인
+                # Check if the box has valid dimensions
                 if x2 > x1 and y2 > y1:
                     face_boxes.append((x1, y1, x2, y2))
         return face_boxes
 
     def _classify_common(self, net: cv2.dnn.Net, face_img: np.ndarray, labels: List[str]) -> str:
-        """분류 공통 로직 (중복 제거 및 안정성 확보)"""
+        """Common classification logic (deduplication and stability)"""
         if not self.is_ready or net is None or face_img is None or face_img.size == 0:
             return "Unknown"
             
@@ -110,11 +110,13 @@ class FaceUtils:
             preds = net.forward()
             return labels[preds[0].argmax()]
         except Exception as e:
-            logger.warning(f"분류 도중 오류 발생: {e}")
+            logger.warning(f"Error during classification: {e}")
             return "Unknown"
 
     def classify_gender(self, face_img: np.ndarray) -> str:
+        """Categorize gender (Male/Female) from a face image snippet"""
         return self._classify_common(self.gender_net, face_img, self.GENDER_LIST)
 
     def classify_age(self, face_img: np.ndarray) -> str:
+        """Estimate age range from a face image snippet"""
         return self._classify_common(self.age_net, face_img, self.AGE_LIST)

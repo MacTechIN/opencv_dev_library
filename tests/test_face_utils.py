@@ -3,27 +3,27 @@ import logging
 from core.processing.face_utils import FaceUtils
 
 def test_face_utils_robustness():
-    print("🧪 [Test] FaceUtils 최적화 및 안정성 테스트 시작")
+    print("🧪 [Test] Starting FaceUtils optimization and stability test")
     
-    # 1. 모델 부재 시 초기화 테스트 (에러 로그가 출력되어야 함)
-    print("\n[Case 1] 잘못된 경로로 초기화 (에러 처리 확인)")
+    # 1. Initialization test with missing models (Should output error logs)
+    print("\n[Case 1] Initialization with invalid path (Verification of error handling)")
     face_module = FaceUtils(models_path="invalid/path")
-    print(f"결과: is_ready = {face_module.is_ready}")
+    print(f"Result: is_ready = {face_module.is_ready}")
     
-    # 2. 유효하지 않은 입력 프레임 테스트
-    print("\n[Case 2] None 또는 빈 프레임 입력 테스트")
+    # 2. Test with invalid input frames
+    print("\n[Case 2] Test with None or empty frame input")
     boxes = face_module.detect_faces(None)
-    print(f"None 입력 결과 (빈 리스트 예상): {boxes}")
+    print(f"Result for None input (Expected empty list): {boxes}")
     
     empty_frame = np.zeros((0, 0, 3), dtype=np.uint8)
     boxes = face_module.detect_faces(empty_frame)
-    print(f"빈 프레임 입력 결과 (빈 리스트 예상): {boxes}")
+    print(f"Result for empty frame input (Expected empty list): {boxes}")
 
-    # 3. 분류 시 안정성 테스트
-    print("\n[Case 3] 분류기 안정성 확인 (Unknown 반환 여부)")
+    # 3. Stability test during classification
+    print("\n[Case 3] Verification of classifier stability (Should return 'Unknown')")
     gender = face_module.classify_gender(None)
     age = face_module.classify_age(None)
-    print(f"결과: Gender={gender}, Age={age} (모두 Unknown 예상)")
+    print(f"Result: Gender={gender}, Age={age} (Expected 'Unknown' for both)")
 
 if __name__ == "__main__":
     test_face_utils_robustness()

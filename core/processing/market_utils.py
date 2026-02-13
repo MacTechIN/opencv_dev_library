@@ -4,21 +4,22 @@ from typing import Dict, List, Any
 import datetime
 from core.utils.logger import get_logger
 
+# Logger initialization
 logger = get_logger("MarketUtils")
 
 class MarketUtils:
     """
-    상권 분석 및 유동 인구 통계를 위한 전문 분석 라이브러리.
-    객체의 특징과 시간 데이터를 결합하여 비즈니스 통계를 산출합니다.
+    Expert analysis library for commercial district analysis and floating population statistics.
+    Combines object features and temporal data to calculate business statistics.
     """
 
     def __init__(self):
-        # 데이터 저장소 (메모리 내 보관, 실제 운영시 DB 연동 추천)
+        # Data storage (In-memory for now, DB integration recommended for production)
         self.visit_log = [] # List of {timestamp, id, gender, age, features}
-        self.active_objects = {} # ID별 활성 객체 정보
+        self.active_objects = {} # Active object info by ID
 
     def record_visit(self, obj_id: int, gender: str, age: str, features: Dict[str, Any]):
-        """방문자의 특징과 시간을 기록합니다."""
+        """Records the visitor's characteristics and entry time."""
         timestamp = datetime.datetime.now()
         log_entry = {
             "timestamp": timestamp,
@@ -28,14 +29,15 @@ class MarketUtils:
             "features": features
         }
         self.visit_log.append(log_entry)
-        logger.info(f"✅ 방문객 기록됨: ID={obj_id}, Gender={gender}, Age={age}")
+        logger.info(f"✅ Visitor recorded: ID={obj_id}, Gender={gender}, Age={age}")
 
     def aggregate_demographics_by_time(self) -> Dict[str, Dict[str, int]]:
         """
-        시간대별 성별/연령대 인구 분포 통계를 집계합니다.
+        Aggregates demographic distribution (gender/age) by time slot.
         
         Returns:
-            { "14:00": {"Male_25-32": 5, "Female_15-20": 2}, ... }
+            Dictionary with time slots as keys and counts as values.
+            Example: { "14:00": {"Male_25-32": 5, "Female_15-20": 2}, ... }
         """
         stats = defaultdict(lambda: defaultdict(int))
         for entry in self.visit_log:
@@ -46,22 +48,23 @@ class MarketUtils:
 
     def analyze_visitor_flow(self, interval_minutes: int = 60) -> Dict[str, Any]:
         """
-        특정 간격(분) 동안의 유입 인구 흐름을 분석합니다.
+        Analyzes the inflow and outflow of visitors during a specific interval (minutes).
         
         Returns:
-            { "inflow": 120, "outflow": 105, "net_change": 15, "peak_hour": "14:00" }
+            Dictionary containing inflow, outflow, net change, and peak hour.
         """
         current_time = datetime.datetime.now()
         start_time = current_time - datetime.timedelta(minutes=interval_minutes)
         
-        # 지정된 시간 간격 내의 방문자 필터링
+        # Filter visitors within the specified time interval
         recent_visits = [e for e in self.visit_log if e["timestamp"] > start_time]
         
         inflow = len(recent_visits)
-        # 실제 환경에서는 출구 카메라 로그를 별도로 관리하지만, 예시에선 랜덤 비중 적용
+        # In actual environments, exit camera logs are managed separately; 
+        # Here, we apply a random ratio for demonstration.
         outflow = int(inflow * 0.85) 
         
-        # 피크 타임 계산
+        # Calculate peak time
         hour_counts = defaultdict(int)
         for e in recent_visits:
             hour_counts[e["timestamp"].strftime("%H:00")] += 1
@@ -76,7 +79,7 @@ class MarketUtils:
 
     def detect_visit_frequency(self) -> Dict[str, Any]:
         """
-        재방문자(Return Visitor)와 신규 방문자의 비율을 분석합니다.
+        Analyzes the ratio between return visitors and new visitors.
         """
         if not self.visit_log:
             return {"total": 0, "retention_rate": 0.0}

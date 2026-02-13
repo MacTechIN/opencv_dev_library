@@ -3,7 +3,7 @@ import numpy as np
 
 def draw_bboxes(image, bboxes, labels):
     """
-    이미지에 바운딩 박스와 라벨을 그림.
+    Draws bounding boxes and labels on the image.
     """
     for bbox, label in zip(bboxes, labels):
         x1, y1, x2, y2 = bbox
@@ -13,6 +13,6 @@ def draw_bboxes(image, bboxes, labels):
 
 def resize_image(image, target_size=(640, 640)):
     """
-    이미지 크기를 조정함.
+    Resizes the image to the target size.
     """
     return cv2.resize(image, target_size)

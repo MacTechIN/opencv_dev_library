@@ -5,8 +5,9 @@ from datetime import datetime
 
 class VisionLogger:
     """
-    고효율 통합 로깅 시스템.
-    콘솔 출력과 파일 기록을 동시에 제공하며, 로그 로테이션을 통해 디스크 공간을 관리합니다.
+    High-efficiency unified logging system.
+    Provides simultaneous console output and file recording, 
+    managing disk space through log rotation.
     """
     _instances = {}
 
@@ -24,18 +25,18 @@ class VisionLogger:
         if self.logger.handlers:
             return
 
-        # 로그 디렉토리 생성
+        # Create log directory
         log_dir = "logs"
         if not os.path.exists(log_dir):
             os.makedirs(log_dir)
 
-        # 포맷 설정
+        # Formatter configuration
         formatter = logging.Formatter(
             '[%(asctime)s] [%(name)s] [%(levelname)s] - %(message)s',
             datefmt='%Y-%m-%d %H:%M:%S'
         )
 
-        # 파일 핸들러 (5MB 단위로 로테이션, 최대 5개 유지)
+        # File handler (Rotate every 5MB, maintain up to 5 backups)
         file_handler = RotatingFileHandler(
             os.path.join(log_dir, "vision_ai.log"),
             maxBytes=5*1024*1024,
@@ -45,7 +46,7 @@ class VisionLogger:
         file_handler.setFormatter(formatter)
         self.logger.addHandler(file_handler)
 
-        # 터미널 실시간 스트리밍 비트 확인 (VISION_LIVE_LOG=1 인 경우만 활성화)
+        # Check terminal live streaming bit (enabled only if VISION_LIVE_LOG=1)
         live_log_bit = os.getenv("VISION_LIVE_LOG", "0").lower()
         if live_log_bit in ("1", "true", "on"):
             console_handler = logging.StreamHandler()
@@ -53,5 +54,5 @@ class VisionLogger:
             self.logger.addHandler(console_handler)
 
 def get_logger(name="VisionAI"):
-    """모듈별 로거 인스턴스를 반환하는 편의 함수"""
+    """Convenience function to return module-specific logger instances"""
     return VisionLogger(name)
