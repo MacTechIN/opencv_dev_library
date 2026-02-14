@@ -3,7 +3,7 @@ import cv2
 import numpy as np
 import os
 import datetime
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Tuple
 from core.utils.logger import get_logger
 
 logger = get_logger("WebUtils")
@@ -34,40 +34,83 @@ class WebAppSDK:
         }
 
     @staticmethod
-    def draw_analysis_overlay(frame: np.ndarray, analysis_results: List[Dict[str, Any]]) -> np.ndarray:
+    def draw_analysis_overlay(frame: np.ndarray, analysis_results: Any) -> np.ndarray:
         """
-        Draws boxes and labels from Qwen-VL analysis results onto the frame.
-        Handles ID, Gender, and Age.
+        Draws boxes and labels for multiple types (Body, Face, Object).
+        Color Map: Body=Green, Face=Blue, Object=Yellow
         """
         output_frame = frame.copy()
         height, width = frame.shape[:2]
 
-        for obj in analysis_results:
-            # Qwen-VL normalized coordinates [ymin, xmin, ymax, xmax] usually in 1000-scale
-            # or absolute if pre-processed. Here we assume 1000-scale normalization based on Qwen-VL defaults.
+        # Handle both list (v1) and dict (v2 VisionHub) inputs
+        results_list = []
+        if isinstance(analysis_results, dict):
+            for k, v in analysis_results.items():
+                if isinstance(v, list): results_list.extend(v)
+        else:
+            results_list = analysis_results
+
+        for obj in results_list:
             ymin, xmin, ymax, xmax = obj['bbox']
+            l, t = int(xmin * width / 1000), int(ymin * height / 1000)
+            r, b = int(xmax * width / 1000), int(ymax * height / 1000)
+
+            # Determine color and label by type
+            obj_type = obj.get("type", "body")
+            if obj_type == "face":
+                color = (255, 0, 0) # Blue
+                label = f"FACE {obj.get('id', '')}"
+            elif obj_type == "object":
+                color = (0, 255, 255) # Yellow
+                label = f"OBJ: {obj.get('class', 'item')}"
+            else:
+                color = (0, 255, 0) # Green
+                g_raw = obj.get('gender', 'Unknown').lower()
+                gender_kr = "남" if "male" in g_raw and "female" not in g_raw else "여" if "female" in g_raw else "?"
+                label = f"{gender_kr}/{obj.get('age', '?')}"
+                if 'distance' in obj: label += f"({obj['distance']}m)"
+
+            # Draw
+            cv2.rectangle(output_frame, (l, t), (r, b), color, 2)
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            f_scale, f_thick = 0.4, 1
+            (lw, lh), _ = cv2.getTextSize(label, font, f_scale, f_thick)
+            cv2.rectangle(output_frame, (l, t - lh - 10), (l + lw + 5, t), color, -1)
+            cv2.putText(output_frame, label, (l + 2, t - 5), font, f_scale, (0, 0, 0), f_thick)
+
+        return output_frame
+
+    @staticmethod
+    def draw_trajectories(frame: np.ndarray, history: Dict[int, List[Tuple[int, int]]], max_points: int = 20) -> np.ndarray:
+        """
+        Draws the movement paths (trajectories) of tracked objects.
+        
+        Args:
+            frame: Base image.
+            history: Dictionary mapping ID to list of (x, y) coordinates.
+            max_points: Max number of history points to draw per object.
+        """
+        output_frame = frame.copy()
+        
+        # Consistent color palette for IDs
+        colors = [
+            (255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), 
+            (0, 255, 255), (255, 0, 255), (255, 255, 255)
+        ]
+
+        for obj_id, points in history.items():
+            if len(points) < 2:
+                continue
             
-            # Convert normalized to absolute
-            left = int(xmin * width / 1000)
-            top = int(ymin * height / 1000)
-            right = int(xmax * width / 1000)
-            bottom = int(ymax * height / 1000)
-
-            # Draw Box
-            color = (0, 255, 0) # Green
-            cv2.rectangle(output_frame, (left, top), (right, bottom), color, 2)
-
-            # Label text
-            label = f"ID:{obj['id']} | {obj['gender']} | {obj['age']}"
-            if 'distance' in obj:
-                label += f" | {obj['distance']}m"
+            color = colors[obj_id % len(colors)]
+            points_to_draw = points[-max_points:]
             
-            # Draw Label Background
-            (l_w, l_h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.4, 1)
-            cv2.rectangle(output_frame, (left, top - 20), (left + l_w, top), color, -1)
-            cv2.putText(output_frame, label, (left, top - 5), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 0), 1)
-
+            for i in range(1, len(points_to_draw)):
+                pt1 = points_to_draw[i - 1]
+                pt2 = points_to_draw[i]
+                thickness = int(np.sqrt(max_points / float(i + 1)) * 2)
+                cv2.line(output_frame, pt1, pt2, color, thickness)
+        
         return output_frame
 
     @staticmethod

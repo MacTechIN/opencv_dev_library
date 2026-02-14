@@ -1,5 +1,6 @@
 import os
 import re
+import json
 import cv2
 import torch
 import requests
@@ -95,23 +96,23 @@ class QwenVLProcessor:
             return []
 
         try:
-            # Handle string (path) or PIL Image or numpy array
-            if isinstance(image_input, str):
-                image = Image.open(image_input).convert("RGB")
-            elif isinstance(image_input, np.ndarray):
-                image = Image.fromarray(cv2.cvtColor(image_input, cv2.COLOR_BGR2RGB))
-            else:
-                image = image_input
-
-            # High-precision prompt for detailed person analysis - using Few-shot style for control
+            # 1. Load image and ensure resolution is optimized for Qwen-VL
+            image = Image.open(image_input).convert("RGB") if isinstance(image_input, str) else Image.fromarray(cv2.cvtColor(image_input, cv2.COLOR_BGR2RGB))
+            
+            # 2. Prepare Prompt (Strict High-Precision Detection)
             prompt = (
-                "<|image_pad|>Task: Detect every person in the image.\n"
-                "Output Format for each person: [ymin, xmin, ymax, xmax] Gender, AgeGroup\n"
-                "Example: [120, 250, 480, 510] Female, 30s\n"
-                "Constraints: Do not provide reasoning. Only list detections."
+                "<|image_pad|>Analyze the image and detect every single person.\n"
+                "Return the results in exactly this format for each person:\n"
+                "[ymin, xmin, ymax, xmax] Gender, AgeGroup\n"
+                "Example output: [150, 200, 400, 300] Male, 20s\n"
+                "Focus: Ensure every person is caught. No talking. Just the list."
             )
 
-            # Force resize image to ensure it doesn't exceed 1280px to avoid tensor mismatch
+            # Performance optimization: Scale resolution to fit model limits efficiently
+            min_pixels = 256 * 28 * 28
+            max_pixels = 1280 * 28 * 28
+            
+            logger.info("📡 Analyzing image with Qwen-VL (Inference starting...)")
             max_side = 1200
             if max(image.size) > max_side:
                 scale = max_side / max(image.size)
@@ -169,6 +170,10 @@ class QwenVLProcessor:
                 ymin, xmin, ymax, xmax, gender, age = match
                 ymin, xmin, ymax, xmax = int(ymin), int(xmin), int(ymax), int(xmax)
 
+                # Skip if it's the example from the prompt
+                if [ymin, xmin, ymax, xmax] == [120, 250, 480, 510]:
+                    continue
+
                 # [NEW] Distance and Location Estimation
                 distance = self.estimate_distance([ymin, xmin, ymax, xmax])
                 location = self.calculate_location([ymin, xmin, ymax, xmax], distance)
@@ -177,14 +182,14 @@ class QwenVLProcessor:
                 feature_vector = self.vectorize_attributes(i + 1, gender, age, [ymin, xmin, ymax, xmax])
 
                 results.append({
-                    "id": i + 1,
+                    "id": len(results) + 1,
                     "bbox": [ymin, xmin, ymax, xmax],
                     "gender": gender,
                     "age": age,
                     "distance": round(float(distance), 2),
                     "location": location,
                     "feature_vector": feature_vector.tolist() if isinstance(feature_vector, np.ndarray) else feature_vector,
-                    "raw_info": attr_text.strip()
+                    "raw_info": f"{gender}, {age}"
                 })
 
             return results
@@ -246,3 +251,36 @@ class QwenVLProcessor:
     def process(self, frame):
         """Backward compatibility: legacy process method."""
         return self.detect_and_analyze_persons(frame)
+
+import datetime
+
+def generate_markdown_report(results, output_path):
+    """Generates a markdown report (detect_person_list.md)."""
+    headers = ["ID", "Gender", "Age Group", "Distance (m)", "Coordinates", "Vector (Gender, Age, BBox...)","Raw Output"]
+    
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write(f"# Person Detection & Analysis Report\n\n")
+        f.write(f"- **Generated At**: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        f.write(f"- **Total Detected**: {len(results)}\n\n")
+        
+        # Table Header
+        f.write("| " + " | ".join(headers) + " |\n")
+        f.write("| " + " | ".join(["---"] * len(headers)) + " |\n")
+        
+        # Table Rows
+        for res in results:
+            # Format vector to be more readable
+            vec_short = ", ".join([f"{v:.2f}" for v in res.get('feature_vector', [])])
+            
+            row = [
+                str(res['id']),
+                res['gender'],
+                res['age'],
+                f"{res.get('distance', 0.0)}m",
+                str(res['bbox']),
+                f"[{vec_short}]",
+                res.get('raw_info', '').replace("|", "\\|")
+            ]
+            f.write("| " + " | ".join(row) + " |\n")
+            
+    logger.info(f"💾 Report saved to {output_path}")
