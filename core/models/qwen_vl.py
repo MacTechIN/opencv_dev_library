@@ -19,13 +19,13 @@ class QwenVLProcessor:
     - Comprehensive Person Analysis: Detection + Gender + Age in one pass
     - Precision Parsing: Regex-based coordinate extraction
     """
-    def __init__(self, model_path: Optional[str] = None):
+    def __init__(self, model_path: Optional[str] = None, device: Optional[str] = None):
         # Set default local path
         if model_path is None:
             model_path = os.path.join(os.getcwd(), "assets/weights/Qwen2.5-VL-3B-Instruct")
         
         self.model_path = model_path
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.repo_id = "Qwen/Qwen2.5-VL-3B-Instruct"
         self.model = None
         self.processor = None
@@ -73,7 +73,7 @@ class QwenVLProcessor:
             self.model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
                 load_path,
                 torch_dtype="auto",
-                device_map="auto",
+                device_map={"": self.device},
                 local_files_only=has_local
             )
             
@@ -247,6 +247,36 @@ class QwenVLProcessor:
         z_3d = distance
         
         return {"x": round(x_3d, 2), "y": 0.0, "z": round(z_3d, 2)}
+
+    def detect_objects(self, image_input: Any, prompt: str = "Detect all items and describe them.") -> str:
+        """
+        Generic object detection and description using an arbitrary prompt.
+        Returns the raw text response from the model.
+        """
+        if not self.model or not self.processor:
+            return "Error: Model not initialized."
+
+        try:
+            image = Image.open(image_input).convert("RGB") if isinstance(image_input, str) else Image.fromarray(cv2.cvtColor(image_input, cv2.COLOR_BGR2RGB))
+            
+            # Use the provided prompt or default
+            inputs = self.processor(
+                text=[prompt], 
+                images=[image], 
+                padding=True,
+                return_tensors="pt"
+            ).to(self.device)
+            
+            with torch.no_grad():
+                generated_ids = self.model.generate(**inputs, max_new_tokens=256)
+            
+            res_text = self.processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
+            logger.info(f"🔍 [detect_objects] Output: {res_text[:100]}...")
+            return res_text
+
+        except Exception as e:
+            logger.error(f"❌ Error during generic detection: {e}")
+            return f"Error: {e}"
 
     def process(self, frame):
         """Backward compatibility: legacy process method."""

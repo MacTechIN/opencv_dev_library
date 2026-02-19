@@ -21,8 +21,13 @@ pip install -r requirements.txt
 
 인터넷 연결 없이 로컬에서 모델을 실행하려면 가중치를 미리 다운로드하고 환경을 설정해야 합니다.
 
+export HF_TOKEN="YOUR_HF_TOKEN"
+python3 core/utils/download_model.py
+
+
 ### 단계 1: 모델 가중치 사전 다운로드 (온라인 상태에서 1회 수행)
 프로젝트에 포함된 전용 유틸리티를 실행하여 `assets/weights/`에 모델을 저장합니다.
+
 
 ```bash
 # 프로젝트 루트에서 실행

@@ -1,0 +1,8 @@
+# EX-005 Qwon-SAM Dependencies
+torch>=2.0
+transformers>=4.45.0
+pillow
+opencv-python
+numpy
+# Meta SAM 2 (Install from Source)
+# pip install git+https://github.com/facebookresearch/sam2.git
